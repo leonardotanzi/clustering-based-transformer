@@ -97,36 +97,35 @@ class Norm(nn.Module):
                / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
         return norm
 
-
-# DA CORREGGERE
-# abbiamo in input [batch, seq_len=10, features=2] prima di passarlo al transformer dobbiamo proiettare ogni token
-# con una dim=d_model (immagine nella repo). mi manca come implementare questo passaggio, com'è qua sotto è sbagliato
 class Transformer(nn.Module):
-    def __init__(self, d_model, heads, n_classes, dropout=0.1):
+    def __init__(self, seq_len, channels, d_model, heads, n_classes, dropout=0.1):
         super().__init__()
-        self.linear1 = nn.Linear(2*10, d_model)
+        self.linear1 = nn.Linear(channels, d_model)
         self.norm = Norm(d_model)
         self.attn = MultiHeadAttention(heads, d_model)
         self.ff = FeedForward(d_model)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(d_model, n_classes)
+        self.linear2 = nn.Linear(seq_len*d_model, n_classes)
 
     def forward(self, x):
-        x = (F.relu(self.linear1(x)))
+        x = self.linear1(x)
         x2 = self.norm(x)
         x = x + self.dropout(self.attn(x2, x2, x2))
         x2 = self.norm(x)
         x = x + self.dropout(self.ff(x2))
+        x = torch.flatten(x, start_dim=1)
         out = self.linear2(x)
         return out
 
 
 class GaussianDistribution(Dataset):
 
-    def __init__(self):
-        first_cluster = torch.empty(size=(1000, 10, 2)).normal_(mean=5, std=0.5)
+    def __init__(self, seq_len, channels):
+        self.channels = channels
+        self.seq_len = seq_len
+        first_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=5, std=0.5)
         first_labels = torch.zeros(1000, dtype=torch.int64)
-        second_cluster = torch.empty(size=(1000, 10, 2)).normal_(mean=10, std=0.5)
+        second_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=10, std=0.5)
         second_labels = torch.ones(1000, dtype=torch.int64)
         self.x = torch.cat(tensors=(first_cluster, second_cluster))
         self.y = torch.cat(tensors=(first_labels, second_labels))
@@ -143,11 +142,13 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    seq_len = 10
+    channels = 2
     batch_size = 8
     num_epochs = 20
     learning_rate = 0.001
 
-    dataset_full = GaussianDistribution()
+    dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
 
     dataset = train_val_dataset(dataset_full)
 
@@ -157,9 +158,10 @@ if __name__ == "__main__":
     dataset_sizes = {x: len(dataset[x]) for x in ["train", "val"]}
     dataiter = iter(train_loader)
     samples, labels = dataiter.next()
-    print(samples[0:2])
+    #print(samples[0:2])
+    print(samples.shape)
 
-    model = Transformer(d_model=512, heads=1, n_classes=2)
+    model = Transformer(seq_len=seq_len, channels=channels, d_model=512, heads=1, n_classes=2)
     # if gpu
     # model.to(device)
 
@@ -180,6 +182,7 @@ if __name__ == "__main__":
             outputs = model(samples)
             loss = criterion(outputs, labels)
 
+            print(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
