@@ -171,21 +171,60 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    # training loop
     n_total_steps = len(train_loader)
+
+    best_acc = 0.0
+
     for epoch in range(num_epochs):
-        for i, (samples, labels) in enumerate(train_loader):
-            # if gpu
-            # samples = samples.to(device)
-            # labels = labels.to(device)
+        print("Epoch {}/{}".format(epoch + 1, num_epochs - 1))
+        print(f"Best acc: {best_acc:.4f}")
+        print("-" * 10)
 
-            outputs = model(samples)
-            loss = criterion(outputs, labels)
+        # Each epoch has a training and validation phase
+        for phase in ["train", "val"]:
+            if phase == "train":
+                model.train()  # Set model to training mode
+                loader = train_loader
+            else:
+                model.eval()  # Set model to evaluate mode
+                loader = val_loader
 
-            print(loss)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if (i + 1) % 100 == 0:
-                print(f"epoch {epoch + 1}/{num_epochs}, step {i + 1}/{n_total_steps},"
-                      f"loss = {loss.item():.4f}")
+            running_loss = 0.0
+            running_corrects = 0
+
+            for i, (images, labels) in enumerate(loader):
+
+                # images = images.to(device)
+                # labels = labels.to(device)
+
+                # forward
+                # track history only if train
+                with torch.set_grad_enabled(phase == "train"):
+
+                    outputs = model(images)
+                    _, preds = torch.max(outputs, 1)
+                    loss = criterion(outputs, labels)
+
+                    # backward + optimize if training
+                    if phase == "train":
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+
+                    running_loss += loss.item() * images.size(0)
+                    running_corrects += torch.sum(preds == labels.data)
+
+                # if phase == "train":
+                #     step_lr_scheduler.step()
+
+                epoch_loss = running_loss / dataset_sizes[phase]
+                epoch_acc = running_corrects.double() / dataset_sizes[phase]
+
+                print("Step {}/{}, {} Loss: {:.4f} Acc: {:.4f}".format(i + 1, n_total_steps, phase, epoch_loss, epoch_acc))
+
+                if phase == "val" and epoch_acc > best_acc:
+                    best_acc = epoch_acc
+
+    print("Finished Training")
+    PATH = "cnn_hierarchical.pth"
+    torch.save(model.state_dict(), PATH)
