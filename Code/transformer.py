@@ -8,6 +8,7 @@ from torch.utils.data import Subset
 from torchsummary import summary
 import math
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def train_val_dataset(dataset, val_split=0.15):
@@ -184,7 +185,7 @@ if __name__ == "__main__":
 
     model = Transformer(seq_len=seq_len, channels=channels, d_model=d_model, heads=n_heads, n_classes=n_classes)
     # if gpu
-    model.to(device)
+    # model.to(device)
 
     # print(summary(model, input_size=(batch_size, seq_len, channels)))
 
@@ -215,8 +216,9 @@ if __name__ == "__main__":
 
             for i, (samples, labels) in enumerate(loader):
 
-                samples = samples.to(device)
-                labels = labels.to(device)
+                # if gpu
+                # samples = samples.to(device)
+                # labels = labels.to(device)
 
                 # forward
                 # track history only if train
@@ -235,9 +237,6 @@ if __name__ == "__main__":
                     running_loss += loss.item() * samples.size(0)
                     running_corrects += torch.sum(preds == labels.data)
 
-                # if phase == "train":
-                #     step_lr_scheduler.step()
-
                 epoch_loss = running_loss / dataset_sizes[phase]
                 epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
@@ -251,12 +250,16 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), PATH)
 
     q_linear = model.attn.q_linear.weight.data
-    k_linear = model.attn.q_linear.weight.data
-    v_linear = model.attn.q_linear.weight.data
+    k_linear = model.attn.k_linear.weight.data
+    v_linear = model.attn.v_linear.weight.data
 
-    print(q_linear)
-    print(k_linear)
-    print(v_linear)
+    eigenvalue_q, _ = np.linalg.eig(q_linear)
+    eigenvalue_k, _ = np.linalg.eig(k_linear)
+    eigenvalue_v, _ = np.linalg.eig(v_linear)
+
+    print(f"Q {q_linear}, eigenvalues {eigenvalue_q}")
+    print(f"K {k_linear}, eigenvalues {eigenvalue_k}")
+    print(f"V {v_linear}, eigenvalues {eigenvalue_v}")
 
     # activation = {}
     # def get_activation(name):
