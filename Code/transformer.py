@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset
 from torchsummary import summary
 import math
+import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
 
 
 def train_val_dataset(dataset, val_split=0.15):
@@ -57,8 +59,14 @@ class MultiHeadAttention(nn.Module):
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
 
+        print("k", k)
+        print("q", q)
+        print("v", v)
+
         # calculate attention using function we will define next
         scores = attention(q, k, v, self.d_k, self.dropout)
+        print("s", scores)
+
         # concatenate heads and put through final linear layer
         concat = scores.transpose(1, 2).contiguous() \
             .view(bs, -1, self.d_model)
@@ -97,6 +105,7 @@ class Norm(nn.Module):
                / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
         return norm
 
+
 class Transformer(nn.Module):
     def __init__(self, seq_len, channels, d_model, heads, n_classes, dropout=0.1):
         super().__init__()
@@ -123,11 +132,12 @@ class GaussianDistribution(Dataset):
     def __init__(self, seq_len, channels):
         self.channels = channels
         self.seq_len = seq_len
-        first_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=5, std=0.5)
+        self.first_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=5, std=0.5)
         first_labels = torch.zeros(1000, dtype=torch.int64)
-        second_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=10, std=0.5)
+        self.second_cluster = torch.empty(size=(1000, seq_len, channels)).normal_(mean=10, std=0.5)
         second_labels = torch.ones(1000, dtype=torch.int64)
-        self.x = torch.cat(tensors=(first_cluster, second_cluster))
+
+        self.x = torch.cat(tensors=(self.first_cluster, self.second_cluster))
         self.y = torch.cat(tensors=(first_labels, second_labels))
         self.n_samples = self.x.size(0)
 
@@ -137,6 +147,12 @@ class GaussianDistribution(Dataset):
     def __len__(self):
         return self.n_samples
 
+    def plot_distrib(self):
+
+        plt.plot(self.first_cluster.numpy()[:, :, 0], self.first_cluster.numpy()[:, :, 1], 'bo')
+        plt.plot(self.second_cluster.numpy()[:, :, 0], self.second_cluster.numpy()[:, :, 1], 'ro')
+        plt.show()
+
 
 if __name__ == "__main__":
 
@@ -145,10 +161,12 @@ if __name__ == "__main__":
     seq_len = 10
     channels = 2
     batch_size = 8
-    num_epochs = 20
+    num_epochs = 3
     learning_rate = 0.001
 
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
+
+    dataset_full.plot_distrib()
 
     dataset = train_val_dataset(dataset_full)
 
@@ -161,7 +179,7 @@ if __name__ == "__main__":
     #print(samples[0:2])
     print(samples.shape)
 
-    model = Transformer(seq_len=seq_len, channels=channels, d_model=512, heads=1, n_classes=2)
+    model = Transformer(seq_len=seq_len, channels=channels, d_model=2, heads=1, n_classes=2)
     # if gpu
     # model.to(device)
 
@@ -228,3 +246,5 @@ if __name__ == "__main__":
     print("Finished Training")
     PATH = "cnn_hierarchical.pth"
     torch.save(model.state_dict(), PATH)
+
+    
