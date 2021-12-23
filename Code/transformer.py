@@ -8,7 +8,6 @@ from torch.utils.data import Subset
 from torchsummary import summary
 import math
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
 
 
 def train_val_dataset(dataset, val_split=0.15):
@@ -59,13 +58,13 @@ class MultiHeadAttention(nn.Module):
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        print("k", k)
-        print("q", q)
-        print("v", v)
+        # print("k", k)
+        # print("q", q)
+        # print("v", v)
 
         # calculate attention using function we will define next
         scores = attention(q, k, v, self.d_k, self.dropout)
-        print("s", scores)
+        # print("s", scores)
 
         # concatenate heads and put through final linear layer
         concat = scores.transpose(1, 2).contiguous() \
@@ -110,17 +109,18 @@ class Transformer(nn.Module):
     def __init__(self, seq_len, channels, d_model, heads, n_classes, dropout=0.1):
         super().__init__()
         self.linear1 = nn.Linear(channels, d_model)
-        self.norm = Norm(d_model)
+        self.norm1 = Norm(d_model)
         self.attn = MultiHeadAttention(heads, d_model)
+        self.norm2 = Norm(d_model)
         self.ff = FeedForward(d_model)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(seq_len*d_model, n_classes)
 
     def forward(self, x):
         x = self.linear1(x)
-        x2 = self.norm(x)
+        x2 = self.norm1(x)
         x = x + self.dropout(self.attn(x2, x2, x2))
-        x2 = self.norm(x)
+        x2 = self.norm2(x)
         x = x + self.dropout(self.ff(x2))
         x = torch.flatten(x, start_dim=1)
         out = self.linear2(x)
@@ -160,13 +160,17 @@ if __name__ == "__main__":
 
     seq_len = 10
     channels = 2
-    batch_size = 8
-    num_epochs = 3
+    d_model = 2
+    n_heads = 1
+    n_classes = 2
+
+    batch_size = 32
+    num_epochs = 6
     learning_rate = 0.001
 
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
 
-    dataset_full.plot_distrib()
+    # dataset_full.plot_distrib()
 
     dataset = train_val_dataset(dataset_full)
 
@@ -176,14 +180,13 @@ if __name__ == "__main__":
     dataset_sizes = {x: len(dataset[x]) for x in ["train", "val"]}
     dataiter = iter(train_loader)
     samples, labels = dataiter.next()
-    #print(samples[0:2])
     print(samples.shape)
 
-    model = Transformer(seq_len=seq_len, channels=channels, d_model=2, heads=1, n_classes=2)
+    model = Transformer(seq_len=seq_len, channels=channels, d_model=d_model, heads=n_heads, n_classes=n_classes)
     # if gpu
-    # model.to(device)
+    model.to(device)
 
-    # print(summary(model, input_size=[2]))
+    # print(summary(model, input_size=(batch_size, seq_len, channels)))
 
     criterion = nn.CrossEntropyLoss()
 
@@ -210,16 +213,16 @@ if __name__ == "__main__":
             running_loss = 0.0
             running_corrects = 0
 
-            for i, (images, labels) in enumerate(loader):
+            for i, (samples, labels) in enumerate(loader):
 
-                # images = images.to(device)
-                # labels = labels.to(device)
+                samples = samples.to(device)
+                labels = labels.to(device)
 
                 # forward
                 # track history only if train
                 with torch.set_grad_enabled(phase == "train"):
 
-                    outputs = model(images)
+                    outputs = model(samples)
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
@@ -229,7 +232,7 @@ if __name__ == "__main__":
                         loss.backward()
                         optimizer.step()
 
-                    running_loss += loss.item() * images.size(0)
+                    running_loss += loss.item() * samples.size(0)
                     running_corrects += torch.sum(preds == labels.data)
 
                 # if phase == "train":
@@ -247,4 +250,24 @@ if __name__ == "__main__":
     PATH = "cnn_hierarchical.pth"
     torch.save(model.state_dict(), PATH)
 
-    
+    q_linear = model.attn.q_linear.weight.data
+    k_linear = model.attn.q_linear.weight.data
+    v_linear = model.attn.q_linear.weight.data
+
+    print(q_linear)
+    print(k_linear)
+    print(v_linear)
+
+    # activation = {}
+    # def get_activation(name):
+    #     def hook(model, input, output):
+    #         activation[name] = output.detach()
+    #     return hook
+    #
+    #
+    # model.norm1.register_forward_hook(get_activation('norm1'))
+    # for samples, _ in loader:
+    #     samples = samples.to(device)
+    #
+    #     output = model(samples)
+    #     print(activation["norm1"])
