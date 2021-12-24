@@ -152,7 +152,9 @@ class GaussianDistribution(Dataset):
 
         plt.plot(self.first_cluster.numpy()[:, :, 0], self.first_cluster.numpy()[:, :, 1], 'bo')
         plt.plot(self.second_cluster.numpy()[:, :, 0], self.second_cluster.numpy()[:, :, 1], 'ro')
-        plt.show()
+        plt.title("Dataset Distribution")
+        plt.xlabel("X")
+        plt.ylabel("Y")
 
 
 if __name__ == "__main__":
@@ -185,9 +187,9 @@ if __name__ == "__main__":
 
     model = Transformer(seq_len=seq_len, channels=channels, d_model=d_model, heads=n_heads, n_classes=n_classes)
     # if gpu
-    # model.to(device)
+    model.to(device)
 
-    # print(summary(model, input_size=(batch_size, seq_len, channels)))
+    print(summary(model, input_size=(seq_len, channels)))
 
     criterion = nn.CrossEntropyLoss()
 
@@ -217,8 +219,8 @@ if __name__ == "__main__":
             for i, (samples, labels) in enumerate(loader):
 
                 # if gpu
-                # samples = samples.to(device)
-                # labels = labels.to(device)
+                samples = samples.to(device)
+                labels = labels.to(device)
 
                 # forward
                 # track history only if train
@@ -253,6 +255,10 @@ if __name__ == "__main__":
     k_linear = model.attn.k_linear.weight.data
     v_linear = model.attn.v_linear.weight.data
 
+    q_linear = q_linear.cpu()
+    k_linear = k_linear.cpu()
+    v_linear = v_linear.cpu()
+
     eigenvalue_q, _ = np.linalg.eig(q_linear)
     eigenvalue_k, _ = np.linalg.eig(k_linear)
     eigenvalue_v, _ = np.linalg.eig(v_linear)
@@ -261,16 +267,36 @@ if __name__ == "__main__":
     print(f"K {k_linear}, eigenvalues {eigenvalue_k}")
     print(f"V {v_linear}, eigenvalues {eigenvalue_v}")
 
-    # activation = {}
-    # def get_activation(name):
-    #     def hook(model, input, output):
-    #         activation[name] = output.detach()
-    #     return hook
-    #
-    #
-    # model.norm1.register_forward_hook(get_activation('norm1'))
-    # for samples, _ in loader:
-    #     samples = samples.to(device)
-    #
-    #     output = model(samples)
-    #     print(activation["norm1"])
+    activation = {}
+
+    def get_activation(name):
+        def hook(model, input, output):
+            activation[name] = output.detach()
+        return hook
+
+    model.attn.q_linear.register_forward_hook(get_activation('q_linear'))
+    model.attn.k_linear.register_forward_hook(get_activation('k_linear'))
+    model.attn.v_linear.register_forward_hook(get_activation('v_linear'))
+
+    full_loader = DataLoader(dataset_full, batch_size=len(dataset_full), shuffle=False)
+
+    for samples, _ in full_loader:
+        samples = samples.to(device)
+
+        output = model(samples)
+
+        out_q = activation["q_linear"]
+        out_k = activation["k_linear"]
+        out_v = activation["v_linear"]
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True, sharey=True)
+    fig.suptitle("Matrix visualization")
+    fig.tight_layout()
+    ax1.set_title("Q")
+    ax2.set_title("K")
+    ax3.set_title("V")
+    ax1.plot(out_q.cpu().numpy()[:, :, 0], out_q.cpu().numpy()[:, :, 1], 'bo')
+    ax2.plot(out_k.cpu().numpy()[:, :, 0], out_k.cpu().numpy()[:, :, 1], 'ro')
+    ax3.plot(out_v.cpu().numpy()[:, :, 0], out_v.cpu().numpy()[:, :, 1], 'go')
+
+    plt.show()
