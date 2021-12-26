@@ -160,6 +160,7 @@ class GaussianDistribution(Dataset):
 if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(0)
 
     seq_len = 10
     channels = 2
@@ -168,7 +169,7 @@ if __name__ == "__main__":
     n_classes = 2
 
     batch_size = 32
-    num_epochs = 6
+    num_epochs = 20
     learning_rate = 0.001
 
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
@@ -248,7 +249,7 @@ if __name__ == "__main__":
                     best_acc = epoch_acc
 
     print("Finished Training")
-    PATH = "cnn_hierarchical.pth"
+    PATH = "transformer.pth"
     torch.save(model.state_dict(), PATH)
 
     q_linear = model.attn.q_linear.weight.data
