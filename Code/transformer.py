@@ -172,6 +172,9 @@ if __name__ == "__main__":
     num_epochs = 20
     learning_rate = 0.001
 
+    save_load_path = "transformer.pth"
+    train = False
+
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
 
     # dataset_full.plot_distrib()
@@ -196,61 +199,64 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    n_total_steps = len(train_loader)
+    if train:
+        n_total_steps = len(train_loader)
 
-    best_acc = 0.0
+        best_acc = 0.0
 
-    for epoch in range(num_epochs):
-        print("Epoch {}/{}".format(epoch + 1, num_epochs - 1))
-        print(f"Best acc: {best_acc:.4f}")
-        print("-" * 10)
+        for epoch in range(num_epochs):
+            print("Epoch {}/{}".format(epoch + 1, num_epochs - 1))
+            print(f"Best acc: {best_acc:.4f}")
+            print("-" * 10)
 
-        # Each epoch has a training and validation phase
-        for phase in ["train", "val"]:
-            if phase == "train":
-                model.train()  # Set model to training mode
-                loader = train_loader
-            else:
-                model.eval()  # Set model to evaluate mode
-                loader = val_loader
+            # Each epoch has a training and validation phase
+            for phase in ["train", "val"]:
+                if phase == "train":
+                    model.train()  # Set model to training mode
+                    loader = train_loader
+                else:
+                    model.eval()  # Set model to evaluate mode
+                    loader = val_loader
 
-            running_loss = 0.0
-            running_corrects = 0
+                running_loss = 0.0
+                running_corrects = 0
 
-            for i, (samples, labels) in enumerate(loader):
+                for i, (samples, labels) in enumerate(loader):
 
-                # if gpu
-                samples = samples.to(device)
-                labels = labels.to(device)
+                    # if gpu
+                    samples = samples.to(device)
+                    labels = labels.to(device)
 
-                # forward
-                # track history only if train
-                with torch.set_grad_enabled(phase == "train"):
+                    # forward
+                    # track history only if train
+                    with torch.set_grad_enabled(phase == "train"):
 
-                    outputs = model(samples)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
+                        outputs = model(samples)
+                        _, preds = torch.max(outputs, 1)
+                        loss = criterion(outputs, labels)
 
-                    # backward + optimize if training
-                    if phase == "train":
-                        optimizer.zero_grad()
-                        loss.backward()
-                        optimizer.step()
+                        # backward + optimize if training
+                        if phase == "train":
+                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
 
-                    running_loss += loss.item() * samples.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
+                        running_loss += loss.item() * samples.size(0)
+                        running_corrects += torch.sum(preds == labels.data)
 
-                epoch_loss = running_loss / dataset_sizes[phase]
-                epoch_acc = running_corrects.double() / dataset_sizes[phase]
+                    epoch_loss = running_loss / dataset_sizes[phase]
+                    epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-                print("Step {}/{}, {} Loss: {:.4f} Acc: {:.4f}".format(i + 1, n_total_steps, phase, epoch_loss, epoch_acc))
+                    print("Step {}/{}, {} Loss: {:.4f} Acc: {:.4f}".format(i + 1, n_total_steps, phase, epoch_loss, epoch_acc))
 
-                if phase == "val" and epoch_acc > best_acc:
-                    best_acc = epoch_acc
+                    if phase == "val" and epoch_acc > best_acc:
+                        best_acc = epoch_acc
 
-    print("Finished Training")
-    PATH = "transformer.pth"
-    torch.save(model.state_dict(), PATH)
+        print("Finished Training")
+        torch.save(model.state_dict(), save_load_path)
+
+    else:
+        model.load_state_dict(torch.load(save_load_path))
 
     q_linear = model.attn.q_linear.weight.data
     k_linear = model.attn.k_linear.weight.data
