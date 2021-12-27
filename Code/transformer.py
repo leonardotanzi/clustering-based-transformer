@@ -9,6 +9,7 @@ from torchsummary import summary
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
 
 def train_val_dataset(dataset, val_split=0.15):
@@ -161,6 +162,7 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(0)
+    writer = SummaryWriter("logs")
 
     seq_len = 10
     channels = 2
@@ -173,7 +175,7 @@ if __name__ == "__main__":
     learning_rate = 0.001
 
     save_load_path = "transformer.pth"
-    train = False
+    train = True
 
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
 
@@ -196,8 +198,10 @@ if __name__ == "__main__":
     print(summary(model, input_size=(seq_len, channels)))
 
     criterion = nn.CrossEntropyLoss()
-
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    # tensorboard
+    writer.add_graph(model, samples.reshape(-1, 10, 2).to(device))
 
     if train:
         n_total_steps = len(train_loader)
