@@ -9,6 +9,7 @@ from torchsummary import summary
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -29,7 +30,8 @@ def attention(q, k, v, d_k, dropout=None):
         scores = dropout(scores)
 
     output = torch.matmul(scores, v)
-    return output
+
+    return output, scores
 
 
 class MultiHeadAttention(nn.Module):
@@ -46,6 +48,8 @@ class MultiHeadAttention(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.out = nn.Linear(d_model, d_model)
+
+        self.attention_scores = None
 
     def forward(self, q, k, v):
         bs = q.size(0)
@@ -65,11 +69,14 @@ class MultiHeadAttention(nn.Module):
         # print("v", v)
 
         # calculate attention using function we will define next
-        scores = attention(q, k, v, self.d_k, self.dropout)
+        att_output, scores = attention(q, k, v, self.d_k, self.dropout)
         # print("s", scores)
 
+        # keep attention scores
+        self.attention_scores = scores
+
         # concatenate heads and put through final linear layer
-        concat = scores.transpose(1, 2).contiguous() \
+        concat = att_output.transpose(1, 2).contiguous() \
             .view(bs, -1, self.d_model)
         output = self.out(concat)
 
@@ -89,7 +96,6 @@ class FeedForward(nn.Module):
         x = self.dropout(F.relu(self.linear_1(x)))
         x = self.linear_2(x)
         return x
-
 
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):
@@ -121,12 +127,16 @@ class Transformer(nn.Module):
     def forward(self, x):
         x = self.linear1(x)
         x2 = self.norm1(x)
-        x = x + self.dropout(self.attn(x2, x2, x2))
+        x3 = self.attn(x2, x2, x2)
+        x = x + self.dropout(x3)
         x2 = self.norm2(x)
         x = x + self.dropout(self.ff(x2))
         x = torch.flatten(x, start_dim=1)
         out = self.linear2(x)
         return out
+
+    def attention_scores(self):
+        return self.attn.attention_scores
 
 
 class GaussianDistribution(Dataset):
@@ -247,6 +257,16 @@ if __name__ == "__main__":
 
                         running_loss += loss.item() * samples.size(0)
                         running_corrects += torch.sum(preds == labels.data)
+
+                    # save attention scores
+                    with torch.no_grad():
+                        if device == "cuda":
+                            attention_scores = model.attention_scores().detach().numpy()
+                        else:
+                            attention_scores = model.attention_scores().cpu().numpy()
+                        sns_plot = sns.heatmap(attention_scores[0][0], annot=True, fmt=".2f")
+                        sns_plot.figure.savefig(f'attention')
+                        plt.clf()
 
                     epoch_loss = running_loss / dataset_sizes[phase]
                     epoch_acc = running_corrects.double() / dataset_sizes[phase]
