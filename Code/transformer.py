@@ -97,6 +97,7 @@ class FeedForward(nn.Module):
         x = self.linear_2(x)
         return x
 
+
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):
         super().__init__()
@@ -166,6 +167,7 @@ class GaussianDistribution(Dataset):
         plt.title("Dataset Distribution")
         plt.xlabel("X")
         plt.ylabel("Y")
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -181,15 +183,15 @@ if __name__ == "__main__":
     n_classes = 2
 
     batch_size = 32
-    num_epochs = 20
+    num_epochs = 5
     learning_rate = 0.001
 
-    save_load_path = "transformer.pth"
+    save_load_path = "transformer1.pth"
     train = True
 
     dataset_full = GaussianDistribution(seq_len=seq_len, channels=channels)
 
-    # dataset_full.plot_distrib()
+    dataset_full.plot_distrib()
 
     dataset = train_val_dataset(dataset_full)
 
