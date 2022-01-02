@@ -11,6 +11,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from torch.utils.tensorboard import SummaryWriter
+import random
+import os
+
+
+def seed_everything(seed):
+    random.seed(seed)
+    tseed = random.randint(1, 1E6)
+    tcseed = random.randint(1, 1E6)
+    npseed = random.randint(1, 1E6)
+    ospyseed = random.randint(1, 1E6)
+
+    torch.manual_seed(tseed)
+    torch.cuda.manual_seed_all(tcseed)
+    np.random.seed(npseed)
+    os.environ["PYTHONHASHSEED"] = str(ospyseed)
 
 
 def train_val_dataset(dataset, val_split=0.15):
@@ -173,6 +188,7 @@ class GaussianDistribution(Dataset):
 if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # seed_everything(1234)
     torch.manual_seed(0)
     writer = SummaryWriter("logs")
 
